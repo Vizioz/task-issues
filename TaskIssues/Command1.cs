@@ -6,12 +6,16 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using FileNotFoundException = System.IO.FileNotFoundException;
+using Process = System.Diagnostics.Process;
 using EnvDTE;
 using EnvDTE80;
 using Microsoft;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Task = System.Threading.Tasks.Task;
+using Microsoft.VisualStudio;
+using System.ComponentModel;
 
 namespace TaskIssues
 {
@@ -104,10 +108,55 @@ namespace TaskIssues
             {
                 // TODO: #3 - This will need to be changed to use the GITHUB API to pull in the Issue info to a custom UI within Visual Studio as GitHub does not support IE which is the embedded browser!
                 // Open a browser window with the GIT issue
-                var itemOps = dte.ItemOperations;
-                itemOps.Navigate(gitRepo + item);
+                //var itemOps = dte.ItemOperations;
+                
+                // dte.ExecuteCommand(gitRepo + item);
+
+                OpenUri(new Uri(gitRepo + item));
             }
 
+        }
+
+        private bool OpenUri(Uri uri)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if (uri == null)
+                throw new ArgumentNullException("uri");
+
+            if (!uri.IsAbsoluteUri)
+                return false;
+
+            /* First try to use the Web Browsing Service. This is not known to work because the
+             * CreateExternalWebBrowser method always returns E_NOTIMPL. However, it is presumably
+             * safer than a Shell Execute for arbitrary URIs.
+             */
+            IVsWebBrowsingService service = ServiceProvider.GetServiceAsync(typeof(SVsWebBrowsingService)) as IVsWebBrowsingService;
+            if (service != null)
+            {
+                __VSCREATEWEBBROWSER createFlags = __VSCREATEWEBBROWSER.VSCWB_AutoShow;
+                VSPREVIEWRESOLUTION resolution = VSPREVIEWRESOLUTION.PR_Default;
+                int result = ErrorHandler.CallWithCOMConvention(() => { ThreadHelper.ThrowIfNotOnUIThread(); return service.CreateExternalWebBrowser((uint)createFlags, resolution, uri.AbsoluteUri); });
+                if (ErrorHandler.Succeeded(result))
+                    return true;
+            }
+
+            // Fall back to Shell Execute, but only for http or https URIs
+            if (uri.Scheme != "http" && uri.Scheme != "https")
+                return false;
+
+            try
+            {
+                Process.Start(uri.AbsoluteUri);
+                return true;
+            }
+            catch (Win32Exception)
+            {
+            }
+            catch (FileNotFoundException)
+            {
+            }
+
+            return false;
         }
 
         /// <summary>
