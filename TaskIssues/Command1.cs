@@ -16,6 +16,7 @@ using Microsoft.VisualStudio.Shell.Interop;
 using Task = System.Threading.Tasks.Task;
 using Microsoft.VisualStudio;
 using System.ComponentModel;
+using Microsoft.VisualStudio.Shell.TableManager;
 
 namespace TaskIssues
 {
@@ -37,44 +38,38 @@ namespace TaskIssues
         /// <summary>
         /// VS Package that provides this command, not null.
         /// </summary>
-        private readonly AsyncPackage package;
+        private readonly AsyncPackage _package;
 
         /// <summary>
         /// The current solution's GIT repository URL.
         /// </summary>
         private readonly string gitRepo;
-
+        private readonly DTE2 _dte;
         /// <summary>
         /// Initializes a new instance of the <see cref="Command1"/> class.
         /// Adds our command handlers for menu (commands must exist in the command table file)
         /// </summary>
         /// <param name="package">Owner package, not null.</param>
         /// <param name="commandService">Command service to add command to, not null.</param>
-        private Command1(AsyncPackage package, OleMenuCommandService commandService)
+        private Command1(OleMenuCommandService commandService, DTE2 dte, AsyncPackage package)
         {
-            this.package = package ?? throw new ArgumentNullException(nameof(package));
+            _dte = dte;
+            this._package = package ?? throw new ArgumentNullException(nameof(package));
             this.gitRepo = GetGitUrl();
-            commandService = commandService ?? throw new ArgumentNullException(nameof(commandService));
+            //commandService = commandService ?? throw new ArgumentNullException(nameof(commandService));
 
             var menuCommandID = new CommandID(CommandSet, CommandId);
             var menuItem = new MenuCommand(this.Execute, menuCommandID);
             commandService.AddCommand(menuItem);
         }
 
-        /// <summary>
-        /// Initializes the singleton instance of the command.
-        /// </summary>
-        /// <param name="package">Owner package, not null.</param>
         public static async Task InitializeAsync(AsyncPackage package)
         {
-            // Switch to the main thread - the call to AddCommand in Command1's constructor requires
-            // the UI thread.
-            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
-
-            OleMenuCommandService commandService = await package.GetServiceAsync((typeof(IMenuCommandService))) as OleMenuCommandService;
-
-            Instance = new Command1(package, commandService);
+            var commandService = await package.GetServiceAsync(typeof(IMenuCommandService)) as OleMenuCommandService;
+            var dte = await package.GetServiceAsync(typeof(DTE)) as DTE2;
+            Instance = new Command1(commandService, dte, package);
         }
+
 
         /// <summary>
         /// This function is the callback used to execute the command when the menu item is clicked.
@@ -88,16 +83,16 @@ namespace TaskIssues
             ThreadHelper.ThrowIfNotOnUIThread();
 
             // Get a reference to the Development Tools Environment (DTE) - I.e. the main VS Application
-            var dte = Package.GetGlobalService(typeof(DTE)) as DTE2;
-            Assumes.Present(dte);
+            //var dte = ServiceProvider.GetService(typeof(DTE)) as DTE2;
+            //Assumes.Present(dte);
 
             // Get the current selected task item
-            var item = GetTaskItem(dte);
+            var item = GetTaskItem(_dte);
             
             if (item == null)
             {
                 VsShellUtilities.ShowMessageBox(
-                serviceProvider: this.package,
+                serviceProvider: this._package,
                 title: "Task Issues",
                 message: "No GITHub issue was found in the task definition",
                 icon: OLEMSGICON.OLEMSGICON_INFO,
@@ -130,7 +125,7 @@ namespace TaskIssues
              * CreateExternalWebBrowser method always returns E_NOTIMPL. However, it is presumably
              * safer than a Shell Execute for arbitrary URIs.
              */
-            IVsWebBrowsingService service = ServiceProvider.GetServiceAsync(typeof(SVsWebBrowsingService)) as IVsWebBrowsingService;
+            IVsWebBrowsingService service = ServiceProvider.GetService(typeof(SVsWebBrowsingService)) as IVsWebBrowsingService;
             if (service != null)
             {
                 __VSCREATEWEBBROWSER createFlags = __VSCREATEWEBBROWSER.VSCWB_AutoShow;
@@ -171,11 +166,11 @@ namespace TaskIssues
         /// <summary>
         /// Gets the service provider from the owner package.
         /// </summary>
-        private Microsoft.VisualStudio.Shell.IAsyncServiceProvider ServiceProvider
+        private IServiceProvider ServiceProvider
         {
             get
             {
-                return this.package;
+                return this._package;
             }
         }
 
@@ -185,9 +180,10 @@ namespace TaskIssues
 
             // TODO: #2 - This function should be getting the current selected item, instead it is currently returned the first item in the list.
             ThreadHelper.ThrowIfNotOnUIThread();
-            var items = dte.ToolWindows.TaskList.TaskItems;
 
+            var items = dte.ToolWindows.TaskList.TaskItems;
             var itemList = items.Cast<TaskItem>();
+
             if (!itemList.Any())
             {
                 return string.Empty;
@@ -199,6 +195,10 @@ namespace TaskIssues
             {
                 return string.Empty;
             }
+
+            // When I debug, I can see what I need here... just don't seem to be able to access it in code, I must be doing something wrong :)
+            //+Entry   { Microsoft.VisualStudio.Shell.TableControl.Implementation.SnapshotTableEntryViewModel}
+            //Microsoft.VisualStudio.Shell.TableControl.ITableEntryHandle { Microsoft.VisualStudio.Shell.TableControl.Implementation.SnapshotTableEntryViewModel}
 
             return matches[0].Value.Substring(2);
         }

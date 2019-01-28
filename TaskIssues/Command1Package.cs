@@ -68,9 +68,30 @@ namespace TaskIssues
         {
             // When initialized asynchronously, the current thread may be a background thread at this point.
             // Do any initialization that requires the UI thread after switching to the UI thread.
-            await this.JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
+            //await this.JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
+
+            await JoinableTaskFactory.SwitchToMainThreadAsync();
+
             await Command1.InitializeAsync(this);
         }
+
+        //protected override async Task InitializeAsync(CancellationToken cancellationToken, IProgress<ServiceProgressData> progress)
+        //{
+        //    await JoinableTaskFactory.SwitchToMainThreadAsync();
+        //    Logger.Initialize(Vsix.Name);
+
+        //    Options = (Options)GetDialogPage(typeof(Options));
+
+
+        //    if (await GetServiceAsync(typeof(IMenuCommandService)) is OleMenuCommandService commandService)
+        //    {
+        //        ClearAllErrorsCommand.Initialize(this, commandService);
+        //        ToggleAutoRunCommand.Initialize(this, commandService);
+        //        OpenSettingsCommand.Initialize(this, commandService);
+        //        RunNowCommand.Initialize(this, commandService);
+        //        SpecifyRulesCommand.Initialize(this, commandService);
+        //    }
+        //}
 
         #endregion
     }
