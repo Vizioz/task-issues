@@ -178,7 +178,7 @@ namespace TaskIssues
         {
             var regex = new Regex(@"\W(\#[0-9]+\b)(?!;)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-            // TODO: #2 - This function should be getting the current selected item, instead it is currently returned the first item in the list.
+            // TODO: #2 -Get the current selected item from the task list
             ThreadHelper.ThrowIfNotOnUIThread();
 
             var items = dte.ToolWindows.TaskList.TaskItems;
